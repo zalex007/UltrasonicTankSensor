@@ -7,8 +7,8 @@
 #include <sensesp_app_builder.h>
 #include "ultrasonic_level.h"
 
-#define TX_PIN D4
-#define RX_PIN D3
+#define TX_PIN D3
+#define RX_PIN D2
 
 //#define SERIAL_DEBUG_DISABLED
 
@@ -31,9 +31,9 @@ ReactESP app([]() {
 
 
   sensesp_app = builder.set_standard_sensors(ALL)
-            ->set_hostname("freshwaterport")
-            ->set_sk_server("10.10.10.1", 3000) // Don't specify server address or port
-            ->set_wifi("SSID", "Password")
+            ->set_hostname("fuelsensor")
+            // ->set_sk_server("10.10.10.1", 3000) // Don't specify server address or port
+            // ->set_wifi("SSID", "Password")
             ->get_app(); 
 
   // The "Signal K path" identifies this sensor to the Signal K server. Leaving
@@ -43,7 +43,7 @@ ReactESP app([]() {
   // https://signalk.org/specification/1.4.0/doc/vesselsBranch.html
   //const char *sk_path = "tanks.freshWater.port.currentLevel";
   //const char *sk_path = "tanks.freshWater.starbord.currentLevel";
-  const char *sk_path = "tanks.fuel.daytank.currentLevel";
+  const char *sk_path = "tanks.fuel.0.currentLevel";
 
 
   // The "Configuration path" is combined with "/config" to formulate a URL
@@ -56,9 +56,9 @@ ReactESP app([]() {
   // run-time configuration.
 
   const char *ultrasonic_in_config_path =
-      "/freshWaterTank_starboard/ultrasonic_in";
-  const char *linear_config_path = "/freshWaterTank_starboard/linear";
-  const char *ultrasonic_ave_samples = "/freshWaterTank_starboard/samples";
+      "/dieselTank/ultrasonic_in";
+  const char *linear_config_path = "/dieselTank/linear";
+  const char *ultrasonic_ave_samples = "/dieselTank/samples";
 
   // Create a sensor that is the source of our data, that will be read every
   // readDelay ms. It is an ultrasonic distance sensor that sends out an
@@ -76,33 +76,26 @@ ReactESP app([]() {
 
 // see: https://github.com/SignalK/SensESP/wiki/Using-AnalogInput-to-Calculate-a-Tank-Level
 
-// without offset 
-//const float = empty_value = 0
-// full_value = 200 
-// range = full_value - empty_value = 200
-// divisor = range / 100 (200 / 100 = 2)
-// multiplier = 1 / divisor (1 / 2 = 0.5)
-
-
-// with offset 
-
   const float empty_value = 0; // in mm 
-  const float full_value = 200; // in mm  
-  const float range = full_value - empty_value;
-  const float divisor = range / 100.0;
-  const float multiplier = 1.0 / divisor; //  (1 / 4.5 = 0.0222222)
-  const float offset = 100.0 - full_value * multiplier; // (100 - (500 x 0.0222222) = 38.8889)
+  const float full_value = 400; // in mm  
 
-// Now, you add Linear to your main.cpp with your calculated multiplier and offset values:
-
-  float scale = 1.0;
+  float scale = 100* 1 / (full_value - empty_value); // 0.25;
+  // 0mm = 0%
+  // 400mm = 100%
 
   // Wire up the output of the analog input to the Linear transform,
   // and then output the results to the Signal K server.
   ultrasonic_sensor
-      ->connect_to(new Linear(multiplier, offset, linear_config_path))
-      ->connect_to(new MovingAverage(10, scale, ultrasonic_ave_samples))
+      ->connect_to(new Linear(scale, 0.0, linear_config_path))
+      // ->connect_to(new MovingAverage(10, scale, ultrasonic_ave_samples))
       ->connect_to(new SKOutputNumber(sk_path));
+
+  // also set tank capacity
+  // int tank_capacity = 27;
+  // auto *constant_sensor = new IntegerProducer();
+  // constant_sensor->connect_to(
+      // new SKOutputNumber("tanks.fuel.0.capacity")
+  // );
 
   // Start the SensESP application running
   sensesp_app->enable();
